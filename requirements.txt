@@ -5,4 +5,4 @@ datasets
 soundfile
 safetensors
 ffmpeg
-accelerate
+accelerate>=0.26.0
