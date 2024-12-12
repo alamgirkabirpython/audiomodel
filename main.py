@@ -7,14 +7,24 @@ import soundfile as sf
 # Load pipeline
 @st.cache_resource
 def load_pipeline():
-    return pipeline("automatic-speech-recognition", model="openai/whisper-large-v3")
+    transcriber = pipeline(
+        "automatic-speech-recognition", 
+        model="BELLE-2/Belle-whisper-large-v3-turbo-zh"
+    )
+    transcriber.model.config.forced_decoder_ids = (
+        transcriber.tokenizer.get_decoder_prompt_ids(
+            language="zh", 
+            task="transcribe"
+        )
+    )
+    return transcriber
 
 pipe = load_pipeline()
 
 # Streamlit app UI
-st.title("Speech-to-Text with Whisper")
+st.title("Speech-to-Text with Belle Whisper")
 
-st.write("Upload an audio file, and the app will transcribe it using the Whisper model.")
+st.write("Upload an audio file, and the app will transcribe it using the Belle Whisper model.")
 
 audio_file = st.file_uploader("Choose an audio file (e.g., .wav, .mp3)", type=["wav", "mp3"])
 
