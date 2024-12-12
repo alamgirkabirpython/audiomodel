@@ -1,8 +1,12 @@
 import streamlit as st
-from transformers import pipeline
-from datasets import load_dataset
-from io import BytesIO
-import soundfile as sf
+from transformers import pipeline, VitsModel, AutoTokenizer
+from pydub import AudioSegment
+import torch
+import numpy as np
+import os
+import time
+import yt_dlp
+import tempfile
 
 # Load pipeline
 @st.cache_resource
@@ -31,25 +35,46 @@ audio_file = st.file_uploader("Choose an audio file (e.g., .wav, .mp3)", type=["
 if audio_file is not None:
     st.audio(audio_file, format="audio/wav")
 
+    # Convert audio file to wav if necessary
+    audio_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+    audio = AudioSegment.from_file(audio_file)
+    audio.export(audio_path, format="wav")
+
     # Read audio file
-    with BytesIO(audio_file.read()) as audio_buffer:
-        audio_data, sample_rate = sf.read(audio_buffer)
-        
+    audio_data = AudioSegment.from_wav(audio_path)
+    samples = np.array(audio_data.get_array_of_samples())
+    sample_rate = audio_data.frame_rate
+
     # Process audio file
     st.write("Processing the audio file...")
-    result = pipe({"array": audio_data, "sampling_rate": sample_rate})
+    result = pipe({"array": samples, "sampling_rate": sample_rate})
 
     # Display transcription
     st.subheader("Transcription:")
     st.write(result["text"])
 
-# Optional sample processing
-if st.button("Try a sample audio"):
-    st.write("Using a sample from the LibriSpeech dataset...")
-    dataset = load_dataset("distil-whisper/librispeech_long", "clean", split="validation")
-    sample = dataset[0]["audio"]
-    
-    # Process sample
-    result = pipe(sample)
-    st.subheader("Transcription for sample audio:")
-    st.write(result["text"])
+# Optional: Process YouTube video audio
+url = st.text_input("Enter a YouTube video URL to transcribe its audio:")
+if url:
+    with st.spinner("Downloading and processing audio..."):
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'wav',
+                'preferredquality': '192',
+            }],
+            'outtmpl': tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            audio_path = ydl_opts['outtmpl']
+
+        audio_data = AudioSegment.from_wav(audio_path)
+        samples = np.array(audio_data.get_array_of_samples())
+        sample_rate = audio_data.frame_rate
+
+        result = pipe({"array": samples, "sampling_rate": sample_rate})
+
+        st.subheader("Transcription for YouTube audio:")
+        st.write(result["text"])
